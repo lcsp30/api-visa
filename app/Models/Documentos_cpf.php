@@ -16,25 +16,15 @@ class Documentos_cpf extends Model
     protected $fillable = [
         'estabelecimento_id',
         'ano',
-        'cpf',
-        'rg',
-        'alvara_prefeitura',
-        'carteira_conselho_profissional',
-        'comprovante_conselho',
-        'licenca_bombeiros',
-        'data_comprovente_conselho',
-        'data_cpf',
-        'data_rg',
-        'data_licenca_bombeiros',
-        'data_alvara_prefeitura',
-        'data_carteira_conselho_profissional'
+        'nome_doc',
+        'doc_local',
+        'doc_fixo',
+        'data_doc',
+        'url',
+        'status'
     ];
 
      public $timestamps = false;
-
-    // public function estabelecimentosCpf(){
-    //    return $this->hasOne(Estabelecimentos_cpf::class, 'documentos_id', 'id_documentos');
-    // }
 
      public function estabecimentoCpf()
     {
