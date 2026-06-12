@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use App\Helpers\FormatadorHelper;
 use App\Models\Controle_licencas;
 use App\Models\Documentos_cnpj;
 use App\Models\Estabelecimentos_cnpj;
 use App\Repositories\EstabelecimentoCnpjRepository;
 use Carbon\Carbon;
+use DateTime;
+use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpWord\TemplateProcessor;
@@ -20,42 +23,16 @@ class EstabelecimentoCnpjService
         $this->repository = $repository;
     }
 
-    public function formatCNPJ($cnpj)
-    {
-        // 1. Remove tudo que não é número
-        $cnpj = preg_replace("/\D/", "", $cnpj);
-        // 2. Aplica a máscara: 00.000.000/0000-00
-        return preg_replace(
-            "/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/",
-            "$1.$2.$3/$4-$5",
-            $cnpj
-        );
-    }
-
-    public function formatarCpf($cpf)
-    {
-        $cpf = preg_replace('/\D/', '', $cpf);
-
-        if (strlen($cpf) !== 11) {
-            return $cpf;
-        }
-
-        return preg_replace(
-            "/(\d{3})(\d{3})(\d{3})(\d{2})/",
-            "$1.$2.$3-$4",
-            $cpf
-        );
-    }
-
+    // Lista todos os estabelecimentos CNPJ resolvendo a situação (ativas, vencidas, notificadas).
     public function listarTodosEsbtCnpj(): Collection
     {
         return $this->repository->listarEstbCnpj()->map(fn($item) => $this->resolverSituacao($item));
     }
 
+    // Ajusta a situação do estabelecimento conforme validade da licença e status de intimação.
     private function resolverSituacao(object $item): object
     {
         if ($item->situacao != 3 && $item->ano == $item->ano_doc) {
-
             if (Carbon::parse($item->validade)->lessThanOrEqualTo(now())) {
                 $this->repository->atualizarSituacaoCnpj($item->id, 3);
                 $item->situacao = 3;
@@ -63,13 +40,12 @@ class EstabelecimentoCnpjService
                 $this->repository->atualizarSituacaoCnpj($item->id, 4);
                 $item->situacao = 4;
             }
-            // else: situacao != 3, ano bate, mas nenhuma condição acima → mantém o que está
         }
-        // se situacao == 3 ou ano != ano_doc → não toca em nada
 
         return $item;
     }
 
+    // Cadastra um novo estabelecimento CNPJ e cria seus documentos iniciais dentro de uma transação.
     public function criarEstabelecimentoComDocs(array $dados)
     {
         $categoria = $dados['categoria_id'];
@@ -95,56 +71,70 @@ class EstabelecimentoCnpjService
         });
     }
 
-    public function baixarLicenca(array $dados)
+    // Gera (ou reutiliza) a licença de funcionamento em Word e retorna o caminho do arquivo.
+    public function baixarLicenca(array $dados): string
     {
-        $id = $dados['id'];
-        $tipo = $dados['tipo'];
+        $id        = $dados['id'];
+        $tipo      = $dados['tipo'];
         $categoria = $dados['categoria'];
-        $ano_doc = $dados['ano'];
+        $ano_doc   = $dados['ano'];
 
-        $estabelecimento = $this->repository->buscarDadosParaLicenca($id);
+        $estabelecimento    = $this->repository->buscarDadosParaLicenca($id);
         $nomeEstabelecimento = $estabelecimento->nome_fantasia;
-        $endereco = $estabelecimento->endereco;
-        $numero = $estabelecimento->numero_endereco;
-        $razaoSocial = $estabelecimento->razao_social;
-        $bairro = $estabelecimento->bairro;
-        $cnpj = $estabelecimento->cnpj;
-        $divisaoTecnica = $estabelecimento->divisao_tecnica;
+        $endereco           = $estabelecimento->endereco;
+        $numero             = $estabelecimento->numero_endereco;
+        $razaoSocial        = $estabelecimento->razao_social;
+        $bairro             = $estabelecimento->bairro;
+        $cnpj               = $estabelecimento->cnpj;
+        $divisaoTecnica     = $estabelecimento->divisao_tecnica;
         $atividadePrincipal = $estabelecimento->atividade_principal;
-        $nomeDoc = $id . "licenca_cnpj.docx";
-        $ano = date('Y');
-        $mes = date('m');
-        $dia = date('d');
-        $mesv = 0;
+        $nomeDoc            = $id . "licenca_cnpj.docx";
+        $ano                = date('Y');
+        $mes                = date('m');
+        $dia                = date('d');
+        $mesv               = 0;
+        $anoV               = 0;
+        $numeroLicenca      = 0;
 
-        $licenca = $this->repository->buscarLicencaPorAno_e_Id($id, $ano_doc);
+        $licenca = $this->repository->buscarLicencaId($id);
 
         if ($licenca) {
-            $numeroLicenca = $licenca->numero_licenca;
-        } else {
+            if ($licenca->ano == $ano_doc) {
+                $numeroLicenca = $licenca->numero_licenca;
+                $anoV = (new DateTime($licenca->validade))->format('Y');
+            } elseif ($ano_doc > $licenca->ano) {
+                $mesv = $categoria == "Drogaria e Ervanaria" ? 04 : 03;
+                $anoV = $ano_doc + 1;
+                $data = Carbon::create($anoV, $mesv, 30);
 
-            if ($categoria == "Drogaria e Ervanaria") {
-                $mesv = 04;
+                $ultimaLicenca = $this->repository->buscarUltimaLicenca($ano_doc, $divisaoTecnica);
+                $numeroLicenca = $ultimaLicenca + 1;
+
+                Controle_licencas::where('estabelecimento_id_cnpj', $id)->update([
+                    'ano'           => $ano_doc,
+                    'numero_licenca' => $numeroLicenca,
+                    'validade'      => $data,
+                ]);
             } else {
-                $mesv = 03;
+                throw new \Exception('Não é possível gerar Licença de Anos Anteriores!');
             }
-            $anov = $ano + 1;
+        } else {
+            $mesv = $categoria == "Drogaria e Ervanaria" ? 04 : 03;
+            $anoV = $ano_doc + 1;
+            $data = Carbon::create($anoV, $mesv, 30);
 
-            $data = Carbon::create($anov, $mesv, 30);
-
-            $ultimaLicenca = $this->repository->buscarUltimaLicenca($ano_doc);
+            $ultimaLicenca = $this->repository->buscarUltimaLicenca($ano_doc, $divisaoTecnica);
+            $numeroLicenca = $ultimaLicenca + 1;
 
             Controle_licencas::create([
                 'estabelecimento_id_cnpj' => $id,
-                'ano' => $ano_doc,
-                'numero_licenca' => $ultimaLicenca + 1,
-                'validade' => $data
+                'ano'                    => $ano_doc,
+                'numero_licenca'          => $numeroLicenca,
+                'validade'               => $data,
             ]);
-
-            $numeroLicenca = $ultimaLicenca + 1;
         }
 
-        $template = new TemplateProcessor(public_path('storage/templates/templete_licenca.docx'));
+        $template = new TemplateProcessor(storage_path('app/public/templates/templete_licenca.docx'));
 
         if ($tipo == "licenca") {
             $template->setValue('r', "\u{00A0}\u{00A0}\u{00A0}");
@@ -165,78 +155,61 @@ class EstabelecimentoCnpjService
         $template->setValue('numeroLicenca', $numeroLicenca);
         $template->setValue('categoriaLicenca', $divisaoTecnica);
         $template->setValue('bairro', mb_strtoupper($bairro, 'UTF-8'));
-        $template->setValue('cnpj', $this->formatCNPJ($cnpj));
-        $template->setValue('anoV', $ano + 1);
+        $template->setValue('cnpj', FormatadorHelper::formatCNPJ($cnpj));
+        $template->setValue('anoV', $anoV);
+        $template->setValue('mesV', $categoria == "Drogaria e Ervanaria" ? "ABRIL" : "MARÇO ");
 
-        if ($categoria == "Drogaria e Ervanaria") {
-            $template->setValue('mesV', "ABRIL");
-        } else {
-            $template->setValue('mesV', "MARÇO ");
-        }
+        $template->saveAs(storage_path('app/public/documentos/licencas/' . $nomeDoc));
 
-        $template->saveAs(__DIR__ . '/../../public/storage/documentos/' . $nomeDoc);
-
-        $caminho = storage_path('app/public/documentos/' . $nomeDoc);
-
-        return $caminho;
+        return storage_path('app/public/documentos/licencas/' . $nomeDoc);
     }
 
-    public function gerarRequerimento(array $dadosInputs, int $id)
+    // Gera um requerimento em Word para CNPJ com base nos itens selecionados.
+    public function gerarRequerimento(array $dadosInputs, int $id): string
     {
-        $dados = Estabelecimentos_cnpj::findOrFail($id);
+        $dados               = Estabelecimentos_cnpj::findOrFail($id);
         $nomeEstabelecimento = $dados->nome_fantasia;
-        $endereco = $dados->endereco;
-        $numeroEndereco = $dados->numero_endereco;
-        $razaoSocial = $dados->razao_social;
-        $localidade = $dados->localidade;
-        $atividadePrincipal = $dados->atividade_principal;
-        $cpf = $dados->cpf;
-        $cnpj = $dados->cnpj;
-        $nomeDoc = $id . "requerimento_cnpj.docx";
-        $ano = date('Y');
-        $mes = date('m');
-        $dia = date('d');
+        $endereco            = $dados->endereco;
+        $numeroEndereco      = $dados->numero_endereco;
+        $razaoSocial         = $dados->razao_social;
+        $localidade          = $dados->localidade;
+        $atividadePrincipal  = $dados->atividade_principal;
+        $cpf                 = $dados->cpf;
+        $cnpj                = $dados->cnpj;
+        $nomeDoc             = $id . "_requerimento_cnpj.docx";
 
-        $template = new TemplateProcessor(__DIR__ . '/../../public/storage/templates/templete_requerimento_doc_cnpj_of.docx');
+        $template = new TemplateProcessor(storage_path('app/public/templates/templete_requerimento_doc_cnpj_of.docx'));
 
         foreach ($dadosInputs as $valor) {
             $template->setValue($valor, 'X');
         }
 
-        $template->setValue('dia', $dia);
-        $template->setValue('mes', $mes);
-        $template->setValue('ano', $ano);
+        $template->setValue('dia', date('d'));
+        $template->setValue('mes', date('m'));
+        $template->setValue('ano', date('Y'));
         $template->setValue('nomeEstabelecimento', $nomeEstabelecimento);
         $template->setValue('razaoSocial', $razaoSocial);
         $template->setValue('endereco', $endereco);
         $template->setValue('atividadePrincipal', $atividadePrincipal);
         $template->setValue('numeroEndereco', $numeroEndereco);
         $template->setValue('localidade', $localidade);
-        $template->setValue('cpf', $this->formatarCpf($cpf));
-        $template->setValue('cnpj', $this->formatCNPJ($cnpj));
+        $template->setValue('cpf', FormatadorHelper::formatarCpf($cpf));
+        $template->setValue('cnpj', FormatadorHelper::formatCNPJ($cnpj));
 
         $variables = $template->getVariables();
         foreach ($variables as $variable) {
-            // Se a variável não foi substituída, ela ainda existe.
-            // Define como string vazia para remover o placeholder.
+            // Substitui variáveis não mapeadas por espaços não quebráveis para remover placeholders.
             $template->setValue($variable, "\u{00A0}\u{00A0}\u{00A0}");
         }
 
-        $template->saveAs(__DIR__ . '/../../public/storage/documentos/' . $nomeDoc);
+        $dirRequerimentos = storage_path('app/public/documentos/requerimentos');
+        if (!is_dir($dirRequerimentos)) {
+            mkdir($dirRequerimentos, 0755, true);
+        }
 
-        $caminho = storage_path('app/public/documentos/' . $nomeDoc);
+        $caminhoDocx = $dirRequerimentos . DIRECTORY_SEPARATOR . $nomeDoc;
+        $template->saveAs($caminhoDocx);
 
-        $soffice = '"C:\\Program Files\\LibreOffice\\program\\soffice.exe"';
-        $outDir = storage_path('app/public/documentos/');
-
-        $comando = "$soffice --headless --convert-to pdf \"$caminho\" --outdir \"$outDir\"";
-
-        exec($comando);
-
-        $pdf = "storage/documentos/" . $id . "requerimento_cnpj.pdf";
-
-        $link = asset($pdf);
-
-        return $link;
+        return $caminhoDocx;
     }
 }

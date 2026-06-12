@@ -6,148 +6,154 @@ use App\Http\Requests\StoreEstabelecimentoCnpjRequest;
 use App\Http\Requests\UpdateEstabelecimentoCnpjRequest;
 use App\Http\Resources\EstabelecimentoCnpjResource;
 use App\Models\Categorias;
-use App\Models\Controle_licencas;
-use App\Models\Doc_categoria;
-use App\Models\Documentos_cnpj;
 use App\Models\Estabelecimentos_cnpj;
 use App\Services\EstabelecimentoCnpjService;
-use Carbon\Carbon;
-use Exception;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use PhpOffice\PhpWord\TemplateProcessor;
+use Illuminate\Support\Facades\Log;
 
 class Estabelecimento_cnpjController extends Controller
 {
-
-    public function __construct(EstabelecimentoCnpjService $service){
-        $this->service = $service;
-    }
-   
-    public function formatCNPJ($cnpj){
-            // 1. Remove tudo que não é número
-            $cnpj = preg_replace("/\D/", "", $cnpj);
-            // 2. Aplica a máscara: 00.000.000/0000-00
-            return preg_replace(
-                "/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/",
-                "$1.$2.$3/$4-$5",
-                $cnpj
-            );
-        }
+    public function __construct(
+        private EstabelecimentoCnpjService $service
+    ) {}
 
     /**
-     * Display a listing of the resource.
+     * Lista todos os estabelecimentos CNPJ com licenças, status e situação atualizada.
+     *
+     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\Http\JsonResponse
      */
     public function index()
     {
-        try{
-          
-            $dados = $this->service->listarTodosEsbtCnpj();
-            return EstabelecimentoCnpjResource::collection($dados);
-
-        }catch(Exception $e){
-            return response($e);
-        }
-    }
-
-    public function getEstabelecimentos_cnpj(String $id){
-            try{
-               $dados = Estabelecimentos_cnpj::findOrFail($id);
-               return response()->json($dados);
-            }catch(Exception $e){
-                return response()->json([
-                    "res" => "Erro ao Buscar Dados"
-                ], 400);
-            }
-        }
-
-    public function getCategorias()
-    {
-        try{
-             $dados = Categorias::all();
-             return response()->json($dados);
-             
-        }catch(Exception $e){
-            return response($e);
+        try {
+            return EstabelecimentoCnpjResource::collection($this->service->listarTodosEsbtCnpj());
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::index: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao listar estabelecimentos.'], 500);
         }
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Busca um estabelecimento CNPJ pelo ID.
+     *
+     * @param String $id ID do estabelecimento.
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getEstabelecimentos_cnpj(String $id)
+    {
+        try {
+            $dados = Estabelecimentos_cnpj::findOrFail($id);
+            return response()->json($dados);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::getEstabelecimentos_cnpj: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Estabelecimento não encontrado.'], 404);
+        }
+    }
+
+    /**
+     * Lista todas as categorias disponíveis para CNPJ.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getCategorias()
+    {
+        try {
+            return response()->json(Categorias::all());
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::getCategorias: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao buscar categorias.'], 500);
+        }
+    }
+
+    /**
+     * Cadastra um novo estabelecimento CNPJ e gera seus documentos iniciais do ano corrente.
+     *
+     * @param StoreEstabelecimentoCnpjRequest $request Dados validados do estabelecimento.
+     * @return \Illuminate\Http\JsonResponse
      */
     public function store(StoreEstabelecimentoCnpjRequest $request)
     {
-        $dados = $request->validated();
-        try{
-        
-           $estabelecimento = $this->service->criarEstabelecimentoComDocs($dados);
+        try {
+            $estabelecimento = $this->service->criarEstabelecimentoComDocs($request->validated());
             return response()->json(['estabelecimento' => $estabelecimento], 201);
-
-        } catch (Exception $e) {
-            return response()->json(['error' => 'Erro ao gravar estabelecimento', 'detail' => $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao cadastrar estabelecimento.'], 500);
         }
     }
 
-    public function licenca(LicencaEstabelecimentoCnpjRequest $request){
-
-        $dados = $request->validated();
-
-         try{
-                $caminhoDownload = $this->service->baixarLicenca($dados);
-                return response()->download($caminhoDownload);
-                
-         }catch(Exception $e){
-
-            return response($e);
-
-         }
-    }
-
-    public function requerimento(Request $request, String $id){
-        $dadosInputs = $request->dados;
-     try{
-        $link = $this->service->gerarRequerimento($dadosInputs, $id);
-        return response()->json([
-            'link' => $link
-        ]);
-    }catch(Exception $e){
-        return response($e);
-    }
-}
-
     /**
-     * Display the specified resource.
+     * Gera e faz download da licença de funcionamento (Word) para um estabelecimento CNPJ.
+     *
+     * @param LicencaEstabelecimentoCnpjRequest $request Dados validados: 'id', 'tipo', 'categoria', 'ano'.
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
      */
-    public function show(string $id)
+    public function licenca(LicencaEstabelecimentoCnpjRequest $request)
     {
-        //
+        try {
+            $caminhoDownload = $this->service->baixarLicenca($request->validated());
+            return response()->download($caminhoDownload);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::licenca: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao gerar licença.'], 500);
+        }
     }
 
     /**
-     * Update the specified resource in storage.
+     * Gera e faz download de um requerimento em Word (.docx) para um estabelecimento CNPJ.
+     *
+     * @param Request $request Contém 'dados' (array de itens selecionados).
+     * @param String $id ID do estabelecimento.
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
+     */
+    public function requerimento(Request $request, String $id)
+    {
+        $dadosInputs = $request->input('dados', []);
+        if (!is_array($dadosInputs) || empty($dadosInputs)) {
+            return response()->json(['Error' => 'Selecione ao menos um item para o requerimento.'], 422);
+        }
+        try {
+            $caminho = $this->service->gerarRequerimento($dadosInputs, (int) $id);
+            return response()->download($caminho, 'Requerimento_' . $id . '.docx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::requerimento: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao gerar requerimento.'], 500);
+        }
+    }
+
+    /**
+     * Atualiza os dados de um estabelecimento CNPJ.
+     *
+     * @param UpdateEstabelecimentoCnpjRequest $request Dados validados para atualização.
+     * @param string $id ID do estabelecimento.
+     * @return \Illuminate\Http\JsonResponse
      */
     public function update(UpdateEstabelecimentoCnpjRequest $request, string $id)
     {
-        $dados = $request->validated();
-
-        try{
-            Estabelecimentos_cnpj::where('id', $id)
-            ->update($dados);
-
-            return response()->json([
-            'res' => "Atualizado com Sucesso!"
-            ], 200);
-        }catch(Exception $e){
-            return response($e);
+        try {
+            Estabelecimentos_cnpj::where('id', $id)->update($request->validated());
+            return response()->json(['res' => "Atualizado com Sucesso!"]);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::update: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao atualizar estabelecimento.'], 500);
         }
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove um estabelecimento CNPJ pelo ID.
+     *
+     * @param string $id ID do estabelecimento.
+     * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(string $id)
     {
-        //
+        try {
+            Estabelecimentos_cnpj::where('id', $id)->delete();
+            return response()->json(['res' => 'Estabelecimento removido com sucesso!']);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_cnpjController::destroy: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao remover estabelecimento.'], 500);
+        }
     }
 }

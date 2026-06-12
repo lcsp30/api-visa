@@ -1,59 +1,232 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# api-visa — API de Vigilância Sanitária
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API privada responsável pelo gerenciamento de estabelecimentos (CNPJ/CPF), licenças de funcionamento, controle documental, emissão de requerimentos/protocolos e notificações da Vigilância Sanitária. Serve o front-end web do **Sistema VISA** e opera como único ponto de persistência e regras de negócio do ecossistema.
 
-## About Laravel
+> 📚 **Documentação técnica completa** em [`docs/ESPECIFICACAO-TECNICA.md`](docs/ESPECIFICACAO-TECNICA.md) — arquitetura, modelo de dados, catálogo de endpoints, fluxos de negócio e segurança.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 1. 🛠️ Stack Tecnológica
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| Camada | Tecnologia |
+|--------|-----------|
+| Linguagem | PHP 8.2+ |
+| Framework | Laravel 12 |
+| Banco de Dados | MySQL 8 (padrão) / SQLite (dev) |
+| Autenticação | Laravel Sanctum (Bearer token) |
+| Geração de Documentos | PhpOffice/PhpWord (templates `.docx`) |
+| Testes | Pest PHP 4.x |
+| Estilo de Código | Laravel Pint |
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## 2. 📦 Pré-requisitos e Infra Local
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- **PHP 8.2+** com extensões: `pdo_mysql`, `mbstring`, `xml`, `curl`, `gd`
+- **Composer 2**
+- **MySQL 8** ou **MariaDB 10.6+** (ou SQLite para dev rápido)
+- **Node.js + NPM** (para assets front-end via Vite)
 
-## Laravel Sponsors
+**Alternativa Docker (Laravel Sail):**
+```bash
+./vendor/bin/sail up -d
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+---
 
-### Premium Partners
+## 3. 🔑 Configuração e Variáveis de Ambiente
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-## Contributing
+### Variáveis essenciais do `.env`
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```env
+# Aplicação
+APP_NAME=api-visa
+APP_ENV=local
+APP_KEY=                          # Gerado automaticamente
+APP_URL=http://localhost:8000
 
-## Code of Conduct
+# Banco de Dados (MySQL)
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=api_visa
+DB_USERNAME=root
+DB_PASSWORD=
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# Sanctum (domínios do front-end que consomem a API)
+SANCTUM_STATEFUL_DOMAINS=localhost:8000
 
-## Security Vulnerabilities
+# Sessão, Cache e Filas (database driver — dispensa Redis em dev)
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### SQLite para dev rápido (sem MySQL)
 
-## License
+```env
+DB_CONNECTION=sqlite
+# O banco database/database.sqlite é criado automaticamente pelo composer setup
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## 4. 🚀 Como Rodar e Migrations
+
+### Instalação rápida
+
+```bash
+git clone https://github.com/lcsp30/api-visa.git
+cd api-visa
+composer setup
+```
+
+O script `composer setup` executa:
+1. `composer install`
+2. Cópia de `.env.example` → `.env` (se não existir)
+3. `php artisan key:generate`
+4. `php artisan migrate --force`
+5. `npm install && npm run build`
+
+### Passo a passo manual
+
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+
+# Edite .env com as credenciais do banco e rode:
+php artisan migrate
+
+# (Opcional) Dados de teste (categorias e documentos obrigatórios)
+php artisan db:seed
+
+# Subir servidor
+php artisan serve
+# API disponível em http://localhost:8000
+```
+
+### Subir servidor + fila + Vite simultaneamente
+
+```bash
+composer dev
+```
+
+---
+
+## 5. 📑 Documentação da API
+
+### Onde consultar os endpoints
+
+| Recurso | Local |
+|---------|-------|
+| **Catálogo completo** (request/response, query params, regras) | [`docs/ESPECIFICACAO-TECNICA.md`](docs/ESPECIFICACAO-TECNICA.md) — Seção 4 |
+| **Rotas em código** | `routes/api.php` |
+| **Listar todas as rotas** | `php artisan route:list` |
+
+### Resumo dos endpoints
+
+| Método | Rota | Auth | Descrição |
+|--------|------|------|-----------|
+| `POST` | `/api/login` | ❌ | Login (retorna token) |
+| `POST` | `/api/register` | ❌ | Registro de usuário |
+| `POST` | `/api/logout` | ✅ | Revoga token |
+| `*` | `/api/user` | ✅ | CRUD de usuários |
+| `*` | `/api/estabelecimentos_cnpj` | ✅ | CRUD CNPJ |
+| `*` | `/api/estabelecimentos_cpf` | ✅ | CRUD CPF |
+| `*` | `/api/doc` | ✅ | CRUD de documentos |
+| `POST` | `/api/criarDocsNovoAno` | ✅ | Cria docs para novo ano |
+| `GET` | `/api/licenca` | ✅ | Gera licença CNPJ (.docx) |
+| `GET` | `/api/licenca_cpf` | ✅ | Gera licença CPF (.docx) |
+| `GET` | `/api/gerar_requerimento{_cnpj}/{id}` | ✅ | Gera requerimento (.docx) |
+| `GET` | `/api/gerarProtocolo/{id}` | ✅ | Gera protocolo (.docx) |
+| `POST` | `/api/intimacao_constatacao` | ✅ | Intimação/constatação |
+| `*` | `/api/estabelecimentos_notificados` | ✅ | CRUD de notificados |
+| `GET` | `/api/metricas` | ✅ | Dashboard |
+
+> Legenda: `*` = `GET`, `POST`, `PUT`, `DELETE` (apiResource)
+
+### Fluxo de autenticação
+
+1. `POST /api/register` com `name`, `name_user`, `password`
+2. `POST /api/login` com `name_user` e `password`
+3. Use o token no header: `Authorization: Bearer {token}`
+
+---
+
+## 6. 🧪 Testes
+
+```bash
+# Rodar todos os testes
+php artisan test
+
+# Com cobertura (requer Xdebug)
+php artisan test --coverage
+
+# Arquivo específico
+php artisan test tests/Feature/AuthTest.php
+```
+
+**Configuração:** O banco de testes usa SQLite em memória. Verifique em `phpunit.xml`:
+
+```xml
+<env name="DB_CONNECTION" value="sqlite"/>
+<env name="DB_DATABASE" value=":memory:"/>
+```
+
+**Cobertura atual:** 20 testes (Pest PHP) — autenticação, CRUD de estabelecimentos, upload de documentos e métricas.
+
+---
+
+## 🏗️ Arquitetura (Resumo)
+
+```
+app/
+├── Enums/               # Enumerações (Situacao, DivisaoTecnica, Tipo)
+├── Helpers/              # Formatação CPF/CNPJ, resposta padronizada
+├── Http/
+│   ├── Controllers/      # 7 Controllers (camada de entrada fina)
+│   ├── Requests/         # Form Requests (validação)
+│   └── Resources/        # API Resources (serialização JSON)
+├── Models/               # 13 Models Eloquent
+├── Repositories/         # 8 Repositories (acesso a dados)
+├── Services/             # 5 Services (regras de negócio)
+└── Providers/
+
+database/
+├── migrations/           # 17 migrations
+└── seeders/              # 5 seeders
+
+routes/
+└── api.php               # 40 rotas
+
+storage/app/public/
+├── documentos/           # Arquivos anexados (PDF, imagens)
+│   ├── licencas/         # Licenças geradas (.docx)
+│   ├── protocolos/       # Protocolos gerados (.docx)
+│   └── requerimentos/    # Requerimentos gerados (.docx)
+└── templates/            # Templates Word (.docx)
+```
+
+### Padrões utilizados
+
+- **Repository Pattern**: Desacopla acesso a dados
+- **Service Layer**: Centraliza regras de negócio (licenças, intimações, docs)
+- **Form Requests**: Validação nos Controllers
+- **API Resources**: Serialização consistente
+
+---
+
+## 🔒 Segurança
+
+- **Autenticação**: Laravel Sanctum (Bearer token stateless)
+- **Senhas**: Bcrypt (12 rounds)
+- **Rate Limiting**: Login e registro limitados a 5 tentativas/minuto
+- **CORS**: Configurável via `config/cors.php`
+
+> ⚠️ Consulte a [documentação técnica](docs/ESPECIFICACAO-TECNICA.md) para vulnerabilidades conhecidas e recomendações de correção.

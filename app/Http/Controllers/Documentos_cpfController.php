@@ -20,6 +20,7 @@ use PhpOffice\PhpWord\TemplateProcessor;
 class Documentos_cpfController extends Controller
 {
 
+    // Aplica máscara de CNPJ (00.000.000/0000-00) a um valor numérico.
     public function formatCNPJ($cnpj)
     {
         // 1. Remove tudo que não é número
@@ -32,8 +33,12 @@ class Documentos_cpfController extends Controller
             $cnpj
         );
     }
+
     /**
-     * Display a listing of the resource.
+     * Lista documentos, licenças e intimações/constatações de um estabelecimento, filtrando por ID, ano e tipo (CNPJ/CPF).
+     *
+     * @param Request $request Contém 'id', 'ano' e 'tipo'.
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
      */
     public function index(Request $request)
     {
@@ -166,20 +171,17 @@ class Documentos_cpfController extends Controller
         }
     }
 
+    /**
+     * Lista licenças do ano corrente agrupadas por divisão técnica (DCQA, DCSEP, DCDM, DCSHT).
+     *
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
+     */
     public function getLicencas()
     {
         try {
-
+        $ano = date('Y');
             $dados = DB::table('controle_licencas')
-                ->whereRaw('controle_licencas.ano = (
-        SELECT MAX(ano) FROM controle_licencas AS sub 
-        WHERE 
-            (sub.estabelecimento_id_cnpj = controle_licencas.estabelecimento_id_cnpj 
-                OR (sub.estabelecimento_id_cnpj IS NULL AND controle_licencas.estabelecimento_id_cnpj IS NULL))
-            AND 
-            (sub.estabelecimento_id_cpf = controle_licencas.estabelecimento_id_cpf 
-                OR (sub.estabelecimento_id_cpf IS NULL AND controle_licencas.estabelecimento_id_cpf IS NULL))
-    )')
+                ->where('ano', $ano)
                 ->leftJoin('estabelecimentos_cnpj', 'controle_licencas.estabelecimento_id_cnpj', '=', 'estabelecimentos_cnpj.id')
                 ->leftJoin('estabelecimentos_cpf', 'controle_licencas.estabelecimento_id_cpf', '=', 'estabelecimentos_cpf.id')
                 ->leftJoin('categorias', 'categorias.id_categoria', '=', 'estabelecimentos_cnpj.categoria_id')
@@ -230,6 +232,12 @@ class Documentos_cpfController extends Controller
         }
     }
 
+    /**
+     * Cria registros de documentos para um novo ano replicando docs fixos do ano anterior e inicializando docs não fixos.
+     *
+     * @param Request $request Contém 'id', 'ano', 'id_categoria' e 'tipo' (CNPJ/CPF).
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
+     */
     public function criarDocsNovoAno(Request $request)
     {
         $id = $request->id;
@@ -296,7 +304,7 @@ class Documentos_cpfController extends Controller
                 ->where('ano', $ano)
                 ->exists();
 
-            if ($anos) {
+            if($anos){
                 return response()->json([
                     'res' => "O Estabelecimento já possui Documentos no ANO adicionado!"
                 ]);
@@ -350,7 +358,10 @@ class Documentos_cpfController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Anexa um arquivo a um documento existente (CNPJ ou CPF).
+     *
+     * @param Request $request Contém 'arquivo' (file), 'id' (documento) e 'tipo'.
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
      */
     public function store(Request $request)
     {
@@ -359,9 +370,8 @@ class Documentos_cpfController extends Controller
             $id = $request->id;
             $tipo = $request->tipo;
 
-
             if ($tipo == "cnpj") {
-                try {
+                try{
                     Documentos_cnpj::where('id_documento', $id)
                         ->update(
                             [
@@ -370,16 +380,11 @@ class Documentos_cpfController extends Controller
                                 'url' => asset('storage/' . $arquivo)
                             ]
                         );
-
-
-
                     return response()->json([
-                        'Sucesso' => 'Arquivo adicionado com Sucesso!!'
-                    ], 200);
+                        'res' => 'Arquivo adicionado com Sucesso!!'
+                    ], 201);
                 } catch (Exception $e) {
-                    return response()->json([
-                        'Error' => 'Erro ao adicionar Arquivo!!'
-                    ]);
+                    return response($e);
                 }
             } else if ($tipo == "cpf") {
                 try {
@@ -400,6 +405,12 @@ class Documentos_cpfController extends Controller
         }
     }
 
+    /**
+     * Cria ou finaliza uma intimação/constatação para estabelecimento CNPJ ou CPF.
+     *
+     * @param Request $request Contém 'id', 'estabelecimento_id', 'ano', 'tipo', 'tipoEstabelecimento', 'descricao', 'data_expiracao' e 'finalizar'.
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
+     */
     public function storeIntimacaoConstatacao(Request $request)
     {
         $id = $request->id;
@@ -502,8 +513,12 @@ class Documentos_cpfController extends Controller
             }
         }
     }
+
     /**
-     * Display the specified resource.
+     * Lista os anos disponíveis de documentos para um estabelecimento (CNPJ ou CPF).
+     *
+     * @param Request $request Contém 'id' e 'tipo'.
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
      */
     public function show(Request $request)
     {
@@ -544,6 +559,12 @@ class Documentos_cpfController extends Controller
         }
     }
 
+    /**
+     * Faz o download de um arquivo de documento.
+     *
+     * @param Request $request Contém 'url' (caminho relativo em storage).
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\JsonResponse
+     */
     public function download(Request $request)
     {
         $docUrl = $request->url;
@@ -558,6 +579,13 @@ class Documentos_cpfController extends Controller
         }
     }
 
+    /**
+     * Gera e faz download de um protocolo em Word (.docx) para CNPJ ou CPF.
+     *
+     * @param Request $request Contém 'n', 'especificos', 'tipo' e 'validade'.
+     * @param String $id ID do estabelecimento.
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\Response
+     */
     public function gerarProtocolo(Request $request, String $id)
     {
         // $validade = $request->validade;
@@ -680,7 +708,10 @@ class Documentos_cpfController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Altera o status de documentos em lote (CNPJ ou CPF).
+     *
+     * @param Request $request Contém 'dados' (array de itens) e 'tipo'.
+     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
      */
     public function update(Request $request)
     {
@@ -721,7 +752,10 @@ class Documentos_cpfController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove o arquivo anexado de um documento (zera doc_local, data_doc e url) e apaga o arquivo físico.
+     *
+     * @param Request $request Contém 'id' (documento), 'url' (caminho) e 'tipo'.
+     * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(Request $request)
     {

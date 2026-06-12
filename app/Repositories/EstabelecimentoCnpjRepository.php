@@ -19,6 +19,7 @@ class EstabelecimentoCnpjRepository
         //
     }
 
+    // Lista todos os estabelecimentos CNPJ com licença, documento e intimação mais recentes via joins.
     public function listarEstbCnpj()
     {
         return DB::table('estabelecimentos_cnpj')
@@ -52,32 +53,37 @@ class EstabelecimentoCnpjRepository
         ->get();
     }
 
+    // Atualiza a situação (status) de um estabelecimento CNPJ.
     public function atualizarSituacaoCnpj(int $id, int $situacao): void 
     {
         Estabelecimentos_cnpj::where('id', $id)->update(['situacao' => $situacao]);
     }
 
+    // Retorna os tipos de documentos vinculados a uma categoria de CNPJ.
     public function docsPorCategoria(int $categoria_id): Collection
     {
         return Doc_categoria::where('categoria_id', $categoria_id)->get(['nome_doc', 'fixo']);
     }
 
+    // Busca dados essenciais de um estabelecimento CNPJ para geração da licença.
     public function buscarDadosParaLicenca(int $id){
         return Estabelecimentos_cnpj::select('nome_fantasia', 'endereco', 'numero_endereco', 'razao_social','bairro', 'cnpj', 'divisao_tecnica', 'atividade_principal')
          ->findOrFail($id);
     }
 
-    public function buscarUltimaLicenca(int $ano_doc){
-        return Controle_licencas::join('estabelecimentos_cnpj', 'estabelecimentos_cnpj.id', '=', 'controle_licencas.estabelecimento_id_cnpj')
-                        ->where('divisao_tecnica', 'estabelecimentos_cnpj.divisao_tecnica')
+    // Retorna o último número de licença emitido no ano para uma divisão técnica específica.
+    public function buscarUltimaLicenca(int $ano_doc, String $divisaoTecnica){
+        $n = DB::table('controle_licencas')->join('estabelecimentos_cnpj', 'estabelecimentos_cnpj.id', '=', 'controle_licencas.estabelecimento_id_cnpj')
+                        ->where('divisao_tecnica', $divisaoTecnica)
                         ->where('ano', $ano_doc)
-                        ->lockForUpdate()
                         ->max('numero_licenca') ?? 0;
+
+        return $n;
     }
 
-    public function buscarLicencaPorAno_e_Id(int $id, int $ano){
+    // Busca a licença existente de um estabelecimento CNPJ pelo ID.
+    public function buscarLicencaId(int $id){
       return Controle_licencas::where('estabelecimento_id_cnpj', $id)
-                ->where('ano', $ano)
                 ->first();
     }
 

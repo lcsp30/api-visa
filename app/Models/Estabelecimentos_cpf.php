@@ -34,7 +34,6 @@ use HasFactory;
         'bairro',
         'complemento_endereco',
         'municipio',
-        'uf',
         'cep',
         'telefone',
         'email',

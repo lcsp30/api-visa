@@ -1,37 +1,213 @@
-*.log
-.DS_Store
-Thumbs.db
+# ============================================
+# 🔒 SEGURANÇA — Credenciais e Dados Sensíveis
+# ============================================
 
+# Arquivos de ambiente (contém APP_KEY, credenciais de banco, secrets)
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
 
+# Credenciais do Composer (tokens de acesso privado)
+auth.json
+
+# Chaves privadas e certificados SSL/TLS
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.jks
+*.keystore
+*.store
+
+# Tokens e secrets
+*.token
+secrets.yml
+secrets.yaml
+credentials.json
+
+# Backups de banco de dados
+*.sql
+*.sql.gz
+*.dump
+database/database.sqlite
+!database/schema.sql
+
+# ============================================
+# 📦 DEPENDÊNCIAS
+# ============================================
+
+# PHP — Composer
 /vendor
-/node_modules
+composer.phar
 
+# Node.js — NPM/Yarn
+/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# ============================================
+# 🛠️ BUILD, COMPILAÇÃO E CACHE
+# ============================================
+
+# Front-end (Vite/Laravel Mix)
 /public/build
 /public/hot
+/public/mix-manifest.json
+
+# Symlink de storage (gerado por artisan storage:link)
 /public/storage
 
-/storage/*.key
-/storage/pail
-/storage/logs/*
+# Cache do framework Laravel
+/bootstrap/cache/*.php
 /storage/framework/cache/data/*
 /storage/framework/sessions/*
+/storage/framework/testing/*
 /storage/framework/views/*
 
-/bootstrap/cache/*.php
+# Cache do Laravel Pail (debugger)
+/storage/pail
 
+# Cache de testes
 .phpunit.cache
 .phpunit.result.cache
+.php_cs.cache
 
-/.fleet
-/.idea
-/.nova
-/.vscode
-/.zed
+# Cache de análise estática (PHPStan, Psalm)
+/phpstan.neon
+.phpstan-baseline.neon
 
+# ============================================
+# 📄 DADOS DE APLICAÇÃO (Runtime/Usuário)
+# ============================================
+
+# Arquivos anexados e documentos gerados (dados de produção/dev local)
+/storage/app/public/documentos/*
+!/storage/app/public/documentos/.gitkeep
+
+# Logs de aplicação
+/storage/logs/*
+!storage/logs/.gitignore
+
+# Logs do PHP-FPM / Apache
+*.access.log
+*.error.log
+
+# ============================================
+# 💻 ARQUIVOS DE SISTEMA OPERACIONAL
+# ============================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ============================================
+# 🖥️ IDES E EDITORES DE CÓDIGO
+# ============================================
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# JetBrains (PhpStorm, IntelliJ)
+.idea/*
+!.idea/codeStyles
+!.idea/inspectionProfiles
+
+# Outros editores
+.fleet
+.nova
+.zed
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# 🐳 DOCKER / CONTAINERS
+# ============================================
+
+# Docker Compose (ambiente local)
+docker-compose.override.yml
+.docker/
+
+# Laravel Sail (dados de volume .sail/ — MySQL local)
+.sail/
+
+# ============================================
+# 🏠 AMBIENTES VIRTUAIS / FERRAMENTAS LOCAIS
+# ============================================
+
+# Laravel Homestead
 Homestead.json
 Homestead.yaml
+after.sh
+aliases
 
-auth.json
+# Vagrant
+.vagrant/
+
+# PHPUnit local
+/.phpunit.cache
+/phpunit.xml.user
+
+# ============================================
+# 🔧 ARQUIVOS TEMPORÁRIOS E EDITORES
+# ============================================
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*#*\#
+.\#*
+
+# Merge conflicts e patches
+*.orig
+*.patch
+*.rej
+
+# Arquivos de backup geral
+*.bak
+*.backup
+*.old
+
+# ============================================
+# 📊 MÉTRICAS E FERRAMENTAS DE QUALIDADE
+# ============================================
+
+# Relatórios de cobertura de código
+/coverage
+/build/logs
+/clover.xml
+/junit.xml
+
+# Laravel Telescope (dados de debug — não commitáveis)
+/storage/telescope
+
+# ============================================
+# 🏗️ PRODUÇÃO / DEPLOY
+# ============================================
+
+# Scripts de deploy que podem conter paths locais sensíveis
+/deploy
+/deployer
+/deploy.php

@@ -2,78 +2,62 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Estabelecimentos_notificados;
-use Exception;
+use App\Services\EstabelecimentoNotificadosService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class Estabelecimento_notificadosController extends Controller
 {
+    public function __construct(
+        private EstabelecimentoNotificadosService $notificadosService
+    ) {}
+
     /**
-     * Display a listing of the resource.
+     * Lista todos os estabelecimentos notificados.
+     *
+     * @return \Illuminate\Http\JsonResponse
      */
     public function index()
     {
-       try{
-            $dados = Estabelecimentos_notificados::all();
-
-            return response()->json($dados);
-       }catch(Exception $e){
-            return response($e);
-       }
-
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        $dados = $request->all();
-
-        try{
-            Estabelecimentos_notificados::create($dados);
-            
-            return response()->json([
-            'Menssagem' => "Sucesso criado com Sucesso!!"
-            ]);
-        }catch(Exception $e){
-            return response($e);
+        try {
+            return response()->json($this->notificadosService->listarTodos());
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_notificadosController::index: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao listar notificados.'], 500);
         }
     }
 
     /**
-     * Display the specified resource.
+     * Cria uma nova notificação para um estabelecimento.
+     *
+     * @param Request $request Dados da notificação.
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function show(string $id)
+    public function store(Request $request)
     {
-        //
+        try {
+            $this->notificadosService->criar($request);
+            return response()->json(['Menssagem' => 'Sucesso criado com Sucesso!!']);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_notificadosController::store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao criar notificação.'], 500);
+        }
     }
 
     /**
-     * Update the specified resource in storage.
+     * Remove uma notificação pelo ID.
+     *
+     * @param string $id ID da notificação.
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function update(Request $request, string $id)
+    public function destroy(string $id)
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Request $request)
-    {
-        $id = $request->id;
-
-        try{
-        $registro = Estabelecimentos_notificados::findOrFail($id);
-        $registro->delete();
-        
-       return response()->json([
-        'message' => 'Excluído com sucesso'
-        ]);
-
-        }catch(Exception $e){
-            return response($e);
+        try {
+            $this->notificadosService->deletar((int) $id);
+            return response()->json(['message' => 'Excluído com sucesso']);
+        } catch (\Throwable $e) {
+            Log::error('Estabelecimento_notificadosController::destroy: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao excluir notificação.'], 500);
         }
     }
 }

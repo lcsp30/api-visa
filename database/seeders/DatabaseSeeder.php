@@ -2,22 +2,17 @@
 
 namespace Database\Seeders;
 
-use App\Models\Documentos_cpf;
-use App\Models\Estabelecimentos_cpf;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(20)->create();
-
-      
+        $this->call([
+            CategoriasSeeder::class,
+            CategoriasCpfSeeder::class,
+            DocCategoriaSeeder::class,
+            DocCategoriaCpfSeeder::class,
+        ]);
     }
 }
