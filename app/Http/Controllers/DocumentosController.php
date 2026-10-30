@@ -100,6 +100,36 @@ class DocumentosController extends Controller
     }
 
     /**
+     * Adiciona um novo documento avulso a um estabelecimento específico.
+     *
+     * @param Request $request Contém 'estabelecimento_id', 'tipo', 'ano', 'nome_doc' e 'doc_fixo'.
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function adicionarDocumento(Request $request)
+    {
+        $request->validate([
+            'estabelecimento_id' => 'required|integer',
+            'tipo'               => 'required|in:cpf,cnpj',
+            'ano'                => 'required',
+            'nome_doc'           => 'required|string|max:150',
+            'doc_fixo'           => 'nullable|boolean',
+        ], [
+            'nome_doc.required' => 'O nome do documento é obrigatório.',
+            'nome_doc.max'      => 'O nome do documento deve ter no máximo 150 caracteres.',
+        ]);
+
+        try {
+            $data = $this->documentosService->adicionarDocumento($request->all());
+            return response()->json($data, 201);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['Error' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            Log::error('DocumentosController::adicionarDocumento: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao adicionar documento.'], 500);
+        }
+    }
+
+    /**
      * Remove o arquivo anexado de um documento (zera doc_local, data_doc e url).
      *
      * @param Request $request Contém 'id' (documento), 'url' (caminho do arquivo) e 'tipo'.

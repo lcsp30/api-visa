@@ -8,6 +8,7 @@ use App\Http\Resources\EstabelecimentoCnpjResource;
 use App\Models\Categorias;
 use App\Models\Estabelecimentos_cnpj;
 use App\Services\EstabelecimentoCnpjService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -18,14 +19,15 @@ class Estabelecimento_cnpjController extends Controller
     ) {}
 
     /**
-     * Lista todos os estabelecimentos CNPJ com licenças, status e situação atualizada.
+     * Lista os estabelecimentos CNPJ paginados (70/página) com busca opcional por LIKE.
      *
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\Http\JsonResponse
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
-            return EstabelecimentoCnpjResource::collection($this->service->listarTodosEsbtCnpj());
+            $busca = $request->query('busca', '');
+            return EstabelecimentoCnpjResource::collection($this->service->listarTodosEsbtCnpj($busca));
         } catch (\Throwable $e) {
             Log::error('Estabelecimento_cnpjController::index: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json(['Error' => 'Erro ao listar estabelecimentos.'], 500);
@@ -75,6 +77,13 @@ class Estabelecimento_cnpjController extends Controller
         try {
             $estabelecimento = $this->service->criarEstabelecimentoComDocs($request->validated());
             return response()->json(['estabelecimento' => $estabelecimento], 201);
+        } catch (QueryException $e) {
+            // Defesa em profundidade: violação de UNIQUE (ex.: corrida entre submissões).
+            if (str_contains($e->getMessage(), 'Duplicate entry')) {
+                return response()->json(['errors' => ['cnpj' => ['Este CNPJ já está cadastrado.']]], 422);
+            }
+            Log::error('Estabelecimento_cnpjController::store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao cadastrar estabelecimento.'], 500);
         } catch (\Throwable $e) {
             Log::error('Estabelecimento_cnpjController::store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json(['Error' => 'Erro ao cadastrar estabelecimento.'], 500);

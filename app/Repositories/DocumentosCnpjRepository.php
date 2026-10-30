@@ -33,6 +33,15 @@ class DocumentosCnpjRepository
             ->exists();
     }
 
+    // Verifica se já existe um documento com o mesmo nome para o estabelecimento no ano informado.
+    public function existeDocumentoPorNome(int $estabelecimentoId, int $ano, string $nomeDoc): bool
+    {
+        return Documentos_cnpj::where('estabelecimento_id', $estabelecimentoId)
+            ->where('ano', $ano)
+            ->where('nome_doc', $nomeDoc)
+            ->exists();
+    }
+
     // Retorna o maior ano de documento registrado para o estabelecimento CNPJ.
     public function maxAno(int $estabelecimentoId): ?int
     {

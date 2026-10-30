@@ -25,7 +25,7 @@ class StoreEstabelecimentoCnpjRequest extends FormRequest
             'categoria_id'              => 'required|integer',
             'tipo_estabelecimento'      => 'nullable|string|max:255',
             'razao_social'              => 'required|string|max:255',
-            'cnpj'                      => 'required|string|size:14',
+            'cnpj'                      => 'required|string|size:14|unique:estabelecimentos_cnpj,cnpj',
             'nome_fantasia'             => 'required|string|max:255',
             'atividade_principal'       => 'required|string|max:255',
             'divisao_tecnica'           => 'required|string|in:DCQA,DCSEP,DCDM,DCSHT',

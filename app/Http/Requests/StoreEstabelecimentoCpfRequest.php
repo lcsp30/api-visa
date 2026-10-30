@@ -25,7 +25,7 @@ class StoreEstabelecimentoCpfRequest extends FormRequest
             'categoria_id'          => 'required|integer',
             'tipo_estabelecimento'  => 'nullable|string|max:255',
             'nome'                  => 'required|string|max:255',
-            'cpf'                   => 'required|string|size:11',
+            'cpf'                   => 'required|string|size:11|unique:estabelecimentos_cpf,cpf',
             'rg'                    => 'required|string|max:20',
             'orgao_expedidor'       => 'required|string|max:100',
             'data_expedicao_rg'     => 'required|date',

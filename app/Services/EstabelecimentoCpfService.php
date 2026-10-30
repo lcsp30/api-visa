@@ -10,7 +10,7 @@ use App\Repositories\EstabelecimentoCpfRepository;
 use Carbon\Carbon;
 use DateTime;
 use Exception;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpWord\TemplateProcessor;
 
@@ -23,10 +23,12 @@ class EstabelecimentoCpfService
         $this->repository = $repository;
     }
 
-    // Lista todos os estabelecimentos CPF resolvendo a situação (ativas, vencidas, notificadas).
-    public function listarTodosEsbtCpf(): Collection
+    // Lista estabelecimentos CPF paginados (70/página) resolvendo a situação de cada item da página.
+    public function listarTodosEsbtCpf(string $busca = ''): LengthAwarePaginator
     {
-        return $this->repository->listarEstbCpf()->map(fn($item) => $this->resolverSituacao($item));
+        return $this->repository->listarEstbCpf($busca)
+            ->paginate(70)
+            ->through(fn($item) => $this->resolverSituacao($item));
     }
 
     // Ajusta a situação do estabelecimento conforme validade da licença e status de intimação.
@@ -109,9 +111,10 @@ class EstabelecimentoCpfService
                 $numeroLicenca = $ultimaLicenca + 1;
 
                 Controle_licencas::where('estabelecimento_id_cpf', $id)->update([
-                    'ano'           => $ano_doc,
-                    'numero_licenca' => $numeroLicenca,
-                    'validade'      => $data,
+                    'ano'             => $ano_doc,
+                    'numero_licenca'  => $numeroLicenca,
+                    'validade'        => $data,
+                    'divisao_tecnica' => $divisaoTecnica,
                 ]);
             } else {
                 throw new \Exception('Não é possível gerar Licença de Anos Anteriores!');
@@ -126,9 +129,10 @@ class EstabelecimentoCpfService
 
             Controle_licencas::create([
                 'estabelecimento_id_cpf' => $id,
-                'ano'                   => $ano_doc,
-                'numero_licenca'         => $numeroLicenca,
-                'validade'              => $data,
+                'ano'                    => $ano_doc,
+                'numero_licenca'          => $numeroLicenca,
+                'validade'               => $data,
+                'divisao_tecnica'        => $divisaoTecnica,
             ]);
         }
 
@@ -145,19 +149,25 @@ class EstabelecimentoCpfService
         $template->setValue('dia', $dia);
         $template->setValue('mes', $mes);
         $template->setValue('ano', $ano);
-        $template->setValue('nomeEstabelecimento', mb_strtoupper($nomeEstabelecimento, 'UTF-8'));
-        $template->setValue('numero', $numero);
-        $template->setValue('endereco', mb_strtoupper($endereco, 'UTF-8'));
-        $template->setValue('bairro', mb_strtoupper($bairro, 'UTF-8'));
-        $template->setValue('atividadePrincipal', mb_strtoupper($atividadePrincipal, 'UTF-8'));
+        $template->setValue('nomeEstabelecimento', mb_strtoupper((string) $nomeEstabelecimento, 'UTF-8'));
+        $template->setValue('numero', (string) $numero);
+        $template->setValue('endereco', mb_strtoupper((string) $endereco, 'UTF-8'));
+        $template->setValue('bairro', mb_strtoupper((string) $bairro, 'UTF-8'));
+        $template->setValue('atividadePrincipal', mb_strtoupper((string) $atividadePrincipal, 'UTF-8'));
         $template->setValue('numeroLicenca', $numeroLicenca);
-        $template->setValue('categoriaLicenca', mb_strtoupper($divisaoTecnica, 'UTF-8'));
+        $template->setValue('categoriaLicenca', mb_strtoupper((string) $divisaoTecnica, 'UTF-8'));
         $template->setValue('anoV', $anoV);
         $template->setValue('mesV', $categoria == "Drogaria e Ervanaria" ? "ABRIL" : "MARÇO");
 
-        $template->saveAs(storage_path('app/public/documentos/' . $nomeDoc));
+        $dirDocsTemp = storage_path('app/public/documentos/docs_temp');
+        if (!is_dir($dirDocsTemp)) {
+            mkdir($dirDocsTemp, 0755, true);
+        }
 
-        return storage_path('app/public/documentos/' . $nomeDoc);
+        $caminhoArquivo = $dirDocsTemp . DIRECTORY_SEPARATOR . $nomeDoc;
+        $template->saveAs($caminhoArquivo);
+
+        return $caminhoArquivo;
     }
 
     // Gera um requerimento em Word para CPF com base nos itens selecionados e categoria.
@@ -170,7 +180,7 @@ class EstabelecimentoCpfService
         $localidade          = $dados->localidade;
         $atividadePrincipal  = $dados->atividade_principal;
         $cpf                 = $dados->cpf;
-        $nomeDoc             = $nomeEstabelecimento . "_requerimento_cpf.docx";
+        $nomeDoc             = $id . "_requerimento_cpf.docx";
 
         if ($categoria == "Profissional Liberal") {
             $titulo_profissional = $dados->formacao_profissional;
@@ -223,11 +233,11 @@ class EstabelecimentoCpfService
             }
         }
 
-        $dirDocumentos = storage_path('app/public/documentos');
-        if (!is_dir($dirDocumentos)) {
-            mkdir($dirDocumentos, 0755, true);
+        $dirDocsTemp = storage_path('app/public/documentos/docs_temp');
+        if (!is_dir($dirDocsTemp)) {
+            mkdir($dirDocsTemp, 0755, true);
         }
-        $caminho = $dirDocumentos . DIRECTORY_SEPARATOR . $nomeDoc;
+        $caminho = $dirDocsTemp . DIRECTORY_SEPARATOR . $nomeDoc;
         $template->saveAs($caminho);
 
         return $caminho;

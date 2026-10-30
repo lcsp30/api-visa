@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\User;
+use App\Models\Users;
 use Illuminate\Database\Eloquent\Collection;
 
 class UserRepository
@@ -10,36 +10,36 @@ class UserRepository
     // Lista todos os usuários cadastrados.
     public function listarTodos(): Collection
     {
-        return User::all();
+        return Users::all();
     }
 
     // Busca um usuário pelo ID.
-    public function buscarPorId(int $id): ?User
+    public function buscarPorId(int $id): ?Users
     {
-        return User::find($id);
+        return Users::find($id);
     }
 
     // Cria um novo usuário.
-    public function criar(array $dados): User
+    public function criar(array $dados): Users
     {
-        return User::create($dados);
+        return Users::create($dados);
     }
 
     // Atualiza os dados de um usuário existente.
     public function atualizar(int $id, array $dados): bool
     {
-        return User::where('id', $id)->update($dados);
+        return Users::where('id', $id)->update($dados);
     }
 
     // Remove um usuário pelo ID.
     public function deletar(int $id): bool
     {
-        return User::where('id', $id)->delete();
+        return Users::where('id', $id)->delete();
     }
 
     // Busca um usuário pelo nome de usuário (name_user).
-    public function buscarPorNomeUser(string $nameUser): ?User
+    public function buscarPorNomeUser(string $nameUser): ?Users
     {
-        return User::where('name_user', $nameUser)->first();
+        return Users::where('name_user', $nameUser)->first();
     }
 }

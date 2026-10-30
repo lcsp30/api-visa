@@ -10,7 +10,7 @@ use App\Repositories\EstabelecimentoCnpjRepository;
 use Carbon\Carbon;
 use DateTime;
 use Exception;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpWord\TemplateProcessor;
 
@@ -23,10 +23,12 @@ class EstabelecimentoCnpjService
         $this->repository = $repository;
     }
 
-    // Lista todos os estabelecimentos CNPJ resolvendo a situação (ativas, vencidas, notificadas).
-    public function listarTodosEsbtCnpj(): Collection
+    // Lista estabelecimentos CNPJ paginados (70/página) resolvendo a situação de cada item da página.
+    public function listarTodosEsbtCnpj(string $busca = ''): LengthAwarePaginator
     {
-        return $this->repository->listarEstbCnpj()->map(fn($item) => $this->resolverSituacao($item));
+        return $this->repository->listarEstbCnpj($busca)
+            ->paginate(70)
+            ->through(fn($item) => $this->resolverSituacao($item));
     }
 
     // Ajusta a situação do estabelecimento conforme validade da licença e status de intimação.
@@ -111,9 +113,10 @@ class EstabelecimentoCnpjService
                 $numeroLicenca = $ultimaLicenca + 1;
 
                 Controle_licencas::where('estabelecimento_id_cnpj', $id)->update([
-                    'ano'           => $ano_doc,
-                    'numero_licenca' => $numeroLicenca,
-                    'validade'      => $data,
+                    'ano'             => $ano_doc,
+                    'numero_licenca'  => $numeroLicenca,
+                    'validade'        => $data,
+                    'divisao_tecnica' => $divisaoTecnica,
                 ]);
             } else {
                 throw new \Exception('Não é possível gerar Licença de Anos Anteriores!');
@@ -131,6 +134,7 @@ class EstabelecimentoCnpjService
                 'ano'                    => $ano_doc,
                 'numero_licenca'          => $numeroLicenca,
                 'validade'               => $data,
+                'divisao_tecnica'        => $divisaoTecnica,
             ]);
         }
 
@@ -147,21 +151,27 @@ class EstabelecimentoCnpjService
         $template->setValue('dia', $dia);
         $template->setValue('mes', $mes);
         $template->setValue('ano', $ano);
-        $template->setValue('nomeEstabelecimento', mb_strtoupper($nomeEstabelecimento, 'UTF-8'));
-        $template->setValue('atividadePrincipal', mb_strtoupper($atividadePrincipal, 'UTF-8'));
-        $template->setValue('razaoSocial', mb_strtoupper($razaoSocial, 'UTF-8'));
-        $template->setValue('endereco', mb_strtoupper($endereco, 'UTF-8'));
-        $template->setValue('numero', $numero);
+        $template->setValue('nomeEstabelecimento', mb_strtoupper((string) $nomeEstabelecimento, 'UTF-8'));
+        $template->setValue('atividadePrincipal', mb_strtoupper((string) $atividadePrincipal, 'UTF-8'));
+        $template->setValue('razaoSocial', mb_strtoupper((string) $razaoSocial, 'UTF-8'));
+        $template->setValue('endereco', mb_strtoupper((string) $endereco, 'UTF-8'));
+        $template->setValue('numero', (string) $numero);
         $template->setValue('numeroLicenca', $numeroLicenca);
-        $template->setValue('categoriaLicenca', $divisaoTecnica);
-        $template->setValue('bairro', mb_strtoupper($bairro, 'UTF-8'));
-        $template->setValue('cnpj', FormatadorHelper::formatCNPJ($cnpj));
+        $template->setValue('categoriaLicenca', mb_strtoupper((string) $divisaoTecnica, 'UTF-8'));
+        $template->setValue('bairro', mb_strtoupper((string) $bairro, 'UTF-8'));
+        $template->setValue('cnpj', FormatadorHelper::formatCNPJ((string) $cnpj));
         $template->setValue('anoV', $anoV);
         $template->setValue('mesV', $categoria == "Drogaria e Ervanaria" ? "ABRIL" : "MARÇO ");
 
-        $template->saveAs(storage_path('app/public/documentos/licencas/' . $nomeDoc));
+        $dirDocsTemp = storage_path('app/public/documentos/docs_temp');
+        if (!is_dir($dirDocsTemp)) {
+            mkdir($dirDocsTemp, 0755, true);
+        }
 
-        return storage_path('app/public/documentos/licencas/' . $nomeDoc);
+        $caminhoArquivo = $dirDocsTemp . DIRECTORY_SEPARATOR . $nomeDoc;
+        $template->saveAs($caminhoArquivo);
+
+        return $caminhoArquivo;
     }
 
     // Gera um requerimento em Word para CNPJ com base nos itens selecionados.
@@ -202,12 +212,12 @@ class EstabelecimentoCnpjService
             $template->setValue($variable, "\u{00A0}\u{00A0}\u{00A0}");
         }
 
-        $dirRequerimentos = storage_path('app/public/documentos/requerimentos');
-        if (!is_dir($dirRequerimentos)) {
-            mkdir($dirRequerimentos, 0755, true);
+        $dirDocsTemp = storage_path('app/public/documentos/docs_temp');
+        if (!is_dir($dirDocsTemp)) {
+            mkdir($dirDocsTemp, 0755, true);
         }
 
-        $caminhoDocx = $dirRequerimentos . DIRECTORY_SEPARATOR . $nomeDoc;
+        $caminhoDocx = $dirDocsTemp . DIRECTORY_SEPARATOR . $nomeDoc;
         $template->saveAs($caminhoDocx);
 
         return $caminhoDocx;

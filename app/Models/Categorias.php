@@ -9,6 +9,8 @@ class Categorias extends Model
 {
    protected $table = 'categorias'; 
    protected $primaryKey = 'id_categoria';
+   public $timestamps = false;
+
    protected $fillable = [
     'nome_categoria'
    ];
@@ -19,6 +21,10 @@ class Categorias extends Model
 
    public function estabelecimentoCategoria(){
       return $this->hasOne(Estabelecimentos_cnpj::class, 'categoria_id', 'id_categoria');
+   }
+
+   public function estabelecimentos(){
+      return $this->hasMany(Estabelecimentos_cnpj::class, 'categoria_id', 'id_categoria');
    }
 }
 

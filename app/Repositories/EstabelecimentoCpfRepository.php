@@ -16,8 +16,9 @@ class EstabelecimentoCpfRepository
         //
     }
 
-    // Lista todos os estabelecimentos CPF com licença, documento e intimação mais recentes via joins.
-    public function listarEstbCpf()
+    // Lista estabelecimentos CPF com licença, documento e intimação mais recentes via joins,
+    // com busca opcional (LIKE) e ordenação estável para permitir paginação server-side.
+    public function listarEstbCpf(?string $busca = null)
     {
         return DB::table('estabelecimentos_cpf')
             ->leftJoin('controle_licencas', function($join){
@@ -46,8 +47,28 @@ class EstabelecimentoCpfRepository
                 ORDER BY ano DESC LIMIT 1
                 )');            
             })
-        ->select('estabelecimentos_cpf.id', 'estabelecimentos_cpf.cpf', 'estabelecimentos_cpf.nome', 'estabelecimentos_cpf.nome_fantasia', 'estabelecimentos_cpf.tipo_estabelecimento','estabelecimentos_cpf.categoria_id', 'estabelecimentos_cpf.situacao', 'controle_licencas.ano', 'controle_licencas.validade', 'documentos_cpf.ano as ano_doc', 'categorias_cpf.nome_categoria', 'intimacao_constatacao_cpf.status')
-        ->get();
+        ->select(
+            'estabelecimentos_cpf.id',
+            'estabelecimentos_cpf.cpf',
+            'estabelecimentos_cpf.nome',
+            'estabelecimentos_cpf.nome_fantasia',
+            'estabelecimentos_cpf.tipo_estabelecimento',
+            'estabelecimentos_cpf.categoria_id',
+            'estabelecimentos_cpf.situacao',
+            'controle_licencas.ano',
+            'controle_licencas.validade',
+            'documentos_cpf.ano as ano_doc',
+            'categorias_cpf.nome_categoria',
+            'intimacao_constatacao_cpf.status'
+        )
+        ->when($busca, function ($query, $busca) {
+            $query->where(function ($q) use ($busca) {
+                $q->where('estabelecimentos_cpf.nome_fantasia', 'like', "%{$busca}%")
+                  ->orWhere('estabelecimentos_cpf.nome', 'like', "%{$busca}%")
+                  ->orWhere('estabelecimentos_cpf.cpf', 'like', "%{$busca}%");
+            });
+        })
+        ->orderBy('estabelecimentos_cpf.created_at', 'desc');
     }
 
     // Atualiza a situação (status) de um estabelecimento CPF.
@@ -73,9 +94,9 @@ class EstabelecimentoCpfRepository
     public function buscarUltimaLicenca(int $ano_doc, string $divisaoTecnica)
     {
         $n = Controle_licencas::join('estabelecimentos_cpf', 'estabelecimentos_cpf.id', '=', 'controle_licencas.estabelecimento_id_cpf')
-                        ->where('divisao_tecnica', $divisaoTecnica)
-                        ->where('ano', $ano_doc)
-                        ->max('numero_licenca') ?? 0;
+                        ->where('estabelecimentos_cpf.divisao_tecnica', $divisaoTecnica)
+                        ->where('controle_licencas.ano', $ano_doc)
+                        ->max('controle_licencas.numero_licenca') ?? 0;
             return $n;
     }
 

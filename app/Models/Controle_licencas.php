@@ -13,7 +13,8 @@ class Controle_licencas extends Model
     'estabelecimento_id_cpf',
     'ano', 
     'numero_licenca',
-    'validade'
+    'validade',
+    'divisao_tecnica'
     ];
     public $timestamps = false;
 

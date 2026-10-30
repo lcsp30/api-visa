@@ -90,8 +90,6 @@ class Documentos_cpfController extends Controller
                         }
                     }
 
-
-
                     // $dadosAgrupados = $dados2->groupBy('tipo');
 
                     return response()->json([
@@ -366,7 +364,7 @@ class Documentos_cpfController extends Controller
     public function store(Request $request)
     {
         if ($request->hasFile('arquivo')) {
-            $arquivo = $request->file('arquivo')->store('documentos', 'public');
+            $arquivo = $request->file('arquivo')->store('documentos/docs_salvos', 'public');
             $id = $request->id;
             $tipo = $request->tipo;
 

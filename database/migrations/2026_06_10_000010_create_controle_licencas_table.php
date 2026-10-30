@@ -14,6 +14,7 @@ return new class extends Migration
             $table->unsignedInteger('estabelecimento_id_cpf')->nullable();
             $table->char('ano', 4);
             $table->integer('numero_licenca');
+            $table->string('divisao_tecnica', 10);
             $table->date('validade');
 
             $table->foreign('estabelecimento_id_cnpj')->references('id')->on('estabelecimentos_cnpj')->onDelete('cascade')->onUpdate('cascade');

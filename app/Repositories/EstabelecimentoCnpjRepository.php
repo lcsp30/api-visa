@@ -19,8 +19,9 @@ class EstabelecimentoCnpjRepository
         //
     }
 
-    // Lista todos os estabelecimentos CNPJ com licença, documento e intimação mais recentes via joins.
-    public function listarEstbCnpj()
+    // Lista estabelecimentos CNPJ com licença, documento e intimação mais recentes via joins,
+    // com busca opcional (LIKE) e ordenação estável para permitir paginação server-side.
+    public function listarEstbCnpj(?string $busca = null)
     {
         return DB::table('estabelecimentos_cnpj')
             ->leftJoin('controle_licencas', function($join){
@@ -49,8 +50,27 @@ class EstabelecimentoCnpjRepository
                 ORDER BY ano DESC LIMIT 1
                 )');            
             })
-        ->select('estabelecimentos_cnpj.id', 'estabelecimentos_cnpj.cnpj', 'estabelecimentos_cnpj.nome_fantasia', 'estabelecimentos_cnpj.tipo_estabelecimento','estabelecimentos_cnpj.categoria_id', 'estabelecimentos_cnpj.situacao', 'controle_licencas.ano', 'controle_licencas.validade', 'documentos_cnpj.ano as ano_doc', 'categorias.nome_categoria', 'intimacao_constatacao.status')
-        ->get();
+        ->select(
+            'estabelecimentos_cnpj.id',
+            'estabelecimentos_cnpj.cnpj',
+            'estabelecimentos_cnpj.nome_fantasia',
+            'estabelecimentos_cnpj.tipo_estabelecimento',
+            'estabelecimentos_cnpj.categoria_id',
+            'estabelecimentos_cnpj.situacao',
+            'controle_licencas.ano',
+            'controle_licencas.validade',
+            'documentos_cnpj.ano as ano_doc',
+            'categorias.nome_categoria',
+            'intimacao_constatacao.status'
+        )
+        ->when($busca, function ($query, $busca) {
+            $query->where(function ($q) use ($busca) {
+                $q->where('estabelecimentos_cnpj.nome_fantasia', 'like', "%{$busca}%")
+                  ->orWhere('estabelecimentos_cnpj.razao_social', 'like', "%{$busca}%")
+                  ->orWhere('estabelecimentos_cnpj.cnpj', 'like', "%{$busca}%");
+            });
+        })
+        ->orderBy('estabelecimentos_cnpj.created_at', 'desc');
     }
 
     // Atualiza a situação (status) de um estabelecimento CNPJ.
@@ -74,9 +94,9 @@ class EstabelecimentoCnpjRepository
     // Retorna o último número de licença emitido no ano para uma divisão técnica específica.
     public function buscarUltimaLicenca(int $ano_doc, String $divisaoTecnica){
         $n = DB::table('controle_licencas')->join('estabelecimentos_cnpj', 'estabelecimentos_cnpj.id', '=', 'controle_licencas.estabelecimento_id_cnpj')
-                        ->where('divisao_tecnica', $divisaoTecnica)
-                        ->where('ano', $ano_doc)
-                        ->max('numero_licenca') ?? 0;
+                        ->where('estabelecimentos_cnpj.divisao_tecnica', $divisaoTecnica)
+                        ->where('controle_licencas.ano', $ano_doc)
+                        ->max('controle_licencas.numero_licenca') ?? 0;
 
         return $n;
     }

@@ -51,11 +51,11 @@ class DocumentosService
         $todosDados = $this->documentosCnpjRepo->buscarPorEstabelecimentoEAno($id, $ano);
 
         $licenca = $todosDados->where('nome_doc', 'Licença de Funcionamento')->first();
-        $dados   = $todosDados->reject(fn($item) => $item->nome_doc === 'Licença de Funcionamento');
+        $dados   = $todosDados->reject(fn($item) => $item->nome_doc === 'Licença de Funcionamento')->values();
 
-        $dadosAtivos   = $dados->where('status', !1)->values()->all();
-        $docPendentes  = $dados->where('doc_local', null)->values()->all();
-        $docAnexados   = $dados->where('doc_local', !null)->values()->all();
+        $dadosAtivos   = $dados->where('status', '!=', 1)->values()->all();
+        $docPendentes  = $dados->whereNull('doc_local')->values()->all();
+        $docAnexados   = $dados->whereNotNull('doc_local')->values()->all();
 
         $dadosAuxiliares = \App\Models\Estabelecimentos_cnpj::query()
             ->select('id', 'situacao')
@@ -73,10 +73,12 @@ class DocumentosService
 
         if ($ano == $maoirAno) {
             $anoAtual = true;
-            if (is_null($licenca->doc_local) && $situacao != 0) {
-                $this->estabelecimentoCnpjRepo->atualizarSituacaoCnpj($id, 0);
-            } elseif (!is_null($licenca->doc_local) && $situacao != 1) {
-                $this->estabelecimentoCnpjRepo->atualizarSituacaoCnpj($id, 1);
+            if ($licenca) {
+                if (is_null($licenca->doc_local) && $situacao != 0) {
+                    $this->estabelecimentoCnpjRepo->atualizarSituacaoCnpj($id, 0);
+                } elseif (!is_null($licenca->doc_local) && $situacao != 1) {
+                    $this->estabelecimentoCnpjRepo->atualizarSituacaoCnpj($id, 1);
+                }
             }
         }
 
@@ -86,8 +88,8 @@ class DocumentosService
             'docPendentes' => $docPendentes,
             'docAnexados'  => $docAnexados,
             'licenca'      => $licenca,
-            'intimacao'    => $dadosAgrupados[1] ?? collect(),
-            'constatacao'  => $dadosAgrupados[2] ?? collect(),
+            'intimacao'    => ($dadosAgrupados[1] ?? collect())->values(),
+            'constatacao'  => ($dadosAgrupados[2] ?? collect())->values(),
             'anoAtual'     => $anoAtual,
         ];
     }
@@ -98,11 +100,11 @@ class DocumentosService
         $todosDados = $this->documentosCpfRepo->buscarPorEstabelecimentoEAno($id, $ano);
 
         $licenca = $todosDados->where('nome_doc', 'Licença de Funcionamento')->first();
-        $dados   = $todosDados->reject(fn($item) => $item->nome_doc === 'Licença de Funcionamento');
+        $dados   = $todosDados->reject(fn($item) => $item->nome_doc === 'Licença de Funcionamento')->values();
 
-        $dadosAtivos   = $dados->where('status', !1)->values()->all();
-        $docPendentes  = $dados->where('doc_local', null)->values()->all();
-        $docAnexados   = $dados->where('doc_local', !null)->values()->all();
+        $dadosAtivos   = $dados->where('status', '!=', 1)->values()->all();
+        $docPendentes  = $dados->whereNull('doc_local')->values()->all();
+        $docAnexados   = $dados->whereNotNull('doc_local')->values()->all();
 
         $dadosAuxiliares = \App\Models\Estabelecimentos_cpf::query()
             ->select('id', 'situacao')
@@ -120,10 +122,12 @@ class DocumentosService
 
         if ($ano == $maoirAno) {
             $anoAtual = true;
-            if (is_null($licenca->doc_local) && $situacao != 0) {
-                $this->estabelecimentoCpfRepo->atualizarSituacaoCpf($id, 0);
-            } elseif (!is_null($licenca->doc_local) && $situacao != 1) {
-                $this->estabelecimentoCpfRepo->atualizarSituacaoCpf($id, 1);
+            if ($licenca) {
+                if (is_null($licenca->doc_local) && $situacao != 0) {
+                    $this->estabelecimentoCpfRepo->atualizarSituacaoCpf($id, 0);
+                } elseif (!is_null($licenca->doc_local) && $situacao != 1) {
+                    $this->estabelecimentoCpfRepo->atualizarSituacaoCpf($id, 1);
+                }
             }
         }
 
@@ -133,8 +137,8 @@ class DocumentosService
             'docPendentes' => $docPendentes,
             'docAnexados'  => $docAnexados,
             'licenca'      => $licenca,
-            'intimacao'    => $dadosAgrupados[1] ?? collect(),
-            'constatacao'  => $dadosAgrupados[2] ?? collect(),
+            'intimacao'    => ($dadosAgrupados[1] ?? collect())->values(),
+            'constatacao'  => ($dadosAgrupados[2] ?? collect())->values(),
             'anoAtual'     => $anoAtual,
         ];
     }
@@ -154,7 +158,7 @@ class DocumentosService
             throw new \RuntimeException('Arquivo inválido. Permitidos apenas PDF, DOC, DOCX, JPG e PNG (máx. 10MB).');
         }
 
-        $arquivo = $request->file('arquivo')->store('documentos', 'public');
+        $arquivo = $request->file('arquivo')->store('documentos/docs_salvos', 'public');
         $id      = $request->id;
         $tipo    = $request->tipo;
 
@@ -213,6 +217,56 @@ class DocumentosService
         throw new \RuntimeException("Tipo não encontrado!!" . $tipo);
     }
 
+    // Adiciona um novo documento avulso para um estabelecimento específico no ano informado.
+    public function adicionarDocumento(array $dados): array
+    {
+        $estabelecimentoId = (int) $dados['estabelecimento_id'];
+        $tipo              = $dados['tipo'];
+        $ano               = (int) $dados['ano'];
+        $nomeDoc           = trim($dados['nome_doc']);
+        $docFixo           = !empty($dados['doc_fixo']) ? 1 : 0;
+
+        if ($tipo === TipoEstabelecimentoEnum::CPF->value) {
+            if ($this->documentosCpfRepo->existeDocumentoPorNome($estabelecimentoId, $ano, $nomeDoc)) {
+                throw new \InvalidArgumentException('Já existe um documento com este nome para este estabelecimento no ano selecionado.');
+            }
+
+            $doc = $this->documentosCpfRepo->criar([
+                'estabelecimento_id' => $estabelecimentoId,
+                'ano'                => $ano,
+                'nome_doc'           => $nomeDoc,
+                'doc_local'          => null,
+                'doc_fixo'           => $docFixo,
+                'data_doc'           => null,
+                'url'                => null,
+                'status'             => 0,
+            ]);
+
+            return ['mensagem' => 'Documento adicionado com sucesso!', 'doc' => $doc];
+        }
+
+        if ($tipo === TipoEstabelecimentoEnum::CNPJ->value) {
+            if ($this->documentosCnpjRepo->existeDocumentoPorNome($estabelecimentoId, $ano, $nomeDoc)) {
+                throw new \InvalidArgumentException('Já existe um documento com este nome para este estabelecimento no ano selecionado.');
+            }
+
+            $doc = $this->documentosCnpjRepo->criar([
+                'estabelecimento_id' => $estabelecimentoId,
+                'ano'                => $ano,
+                'nome_doc'           => $nomeDoc,
+                'doc_local'          => null,
+                'doc_fixo'           => $docFixo,
+                'data_doc'           => null,
+                'url'                => null,
+                'status'             => 0,
+            ]);
+
+            return ['mensagem' => 'Documento adicionado com sucesso!', 'doc' => $doc];
+        }
+
+        throw new \InvalidArgumentException("Tipo de estabelecimento inválido: $tipo");
+    }
+
     // Remove o arquivo anexado de um documento (limpa referências no banco e apaga arquivo físico).
     public function apagarDocumento(Request $request): array
     {
@@ -234,6 +288,13 @@ class DocumentosService
             ]);
         }
 
+        if (!Storage::disk('public')->exists($caminho)) {
+            $fallbackSalvos = 'documentos/docs_salvos/' . basename($caminho);
+            if (Storage::disk('public')->exists($fallbackSalvos)) {
+                $caminho = $fallbackSalvos;
+            }
+        }
+
         $docApagado = Storage::disk('public')->delete($caminho);
 
         return [
@@ -250,7 +311,15 @@ class DocumentosService
         $caminho = storage_path("app/public/" . $docUrl);
 
         if (!file_exists($caminho)) {
-            throw new \RuntimeException('Arquivo não encontrado');
+            $fallbackSalvos = storage_path("app/public/documentos/docs_salvos/" . basename($docUrl));
+            $fallbackDoc    = storage_path("app/public/documentos/" . basename($docUrl));
+            if (file_exists($fallbackSalvos)) {
+                $caminho = $fallbackSalvos;
+            } elseif (file_exists($fallbackDoc)) {
+                $caminho = $fallbackDoc;
+            } else {
+                throw new \RuntimeException('Arquivo não encontrado');
+            }
         }
 
         return $caminho;
@@ -311,9 +380,9 @@ class DocumentosService
                     'estabelecimento_id' => $id,
                     'ano'                => $ano,
                     'nome_doc'           => $d->nome_doc,
-                    'doc_local'          => $infoDoc->doc_local,
+                    'doc_local'          => $infoDoc?->doc_local,
                     'doc_fixo'           => $d->fixo,
-                    'data_doc'           => $infoDoc->data_doc,
+                    'data_doc'           => $infoDoc?->data_doc,
                 ]);
             } else {
                 $this->documentosCnpjRepo->criar([
@@ -351,9 +420,9 @@ class DocumentosService
                     'estabelecimento_id' => $id,
                     'ano'                => $ano,
                     'nome_doc'           => $d->nome_doc,
-                    'doc_local'          => $infoDoc->doc_local,
+                    'doc_local'          => $infoDoc?->doc_local,
                     'doc_fixo'           => $d->fixo,
-                    'data_doc'           => $infoDoc->data_doc,
+                    'data_doc'           => $infoDoc?->data_doc,
                 ]);
             } else {
                 $this->documentosCpfRepo->criar([
@@ -422,11 +491,11 @@ class DocumentosService
             $template->setValue($variable, "\u{00A0}\u{00A0}\u{00A0}");
         }
 
-        $dirProtocolos = storage_path('app/public/documentos/protocolos');
-        if (!is_dir($dirProtocolos)) {
-            mkdir($dirProtocolos, 0755, true);
+        $dirDocsTemp = storage_path('app/public/documentos/docs_temp');
+        if (!is_dir($dirDocsTemp)) {
+            mkdir($dirDocsTemp, 0755, true);
         }
-        $caminho = $dirProtocolos . DIRECTORY_SEPARATOR . $nomeDoc;
+        $caminho = $dirDocsTemp . DIRECTORY_SEPARATOR . $nomeDoc;
         $template->saveAs($caminho);
 
         return $caminho;
@@ -469,11 +538,11 @@ class DocumentosService
             $template->setValue($variable, "\u{00A0}\u{00A0}\u{00A0}");
         }
 
-        $dirProtocolos = storage_path('app/public/documentos/protocolos');
-        if (!is_dir($dirProtocolos)) {
-            mkdir($dirProtocolos, 0755, true);
+        $dirDocsTemp = storage_path('app/public/documentos/docs_temp');
+        if (!is_dir($dirDocsTemp)) {
+            mkdir($dirDocsTemp, 0755, true);
         }
-        $caminho = $dirProtocolos . DIRECTORY_SEPARATOR . $nomeDoc;
+        $caminho = $dirDocsTemp . DIRECTORY_SEPARATOR . $nomeDoc;
         $template->saveAs($caminho);
 
         return $caminho;

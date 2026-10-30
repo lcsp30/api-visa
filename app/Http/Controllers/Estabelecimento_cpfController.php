@@ -9,6 +9,7 @@ use App\Http\Resources\Estabelecimento_cpfResouser;
 use App\Models\Categorias_cpf;
 use App\Models\Estabelecimentos_cpf;
 use App\Services\EstabelecimentoCpfService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -22,14 +23,15 @@ class Estabelecimento_cpfController extends Controller
     }
 
     /**
-     * Lista todos os estabelecimentos CPF com licenças, status e situação atualizada.
+     * Lista os estabelecimentos CPF paginados (70/página) com busca opcional por LIKE.
      *
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection|\Illuminate\Http\JsonResponse
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
-            return Estabelecimento_cpfResouser::collection($this->service->listarTodosEsbtCpf());
+            $busca = $request->query('busca', '');
+            return Estabelecimento_cpfResouser::collection($this->service->listarTodosEsbtCpf($busca));
         } catch (\Throwable $e) {
             Log::error('Estabelecimento_cpfController::index: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json(['Error' => 'Erro ao listar estabelecimentos.'], 500);
@@ -78,6 +80,13 @@ class Estabelecimento_cpfController extends Controller
         try {
             $estabelecimento = $this->service->criarEstabelecimentoComDocs($request->validated());
             return response()->json(['estabelecimento' => $estabelecimento], 201);
+        } catch (QueryException $e) {
+            // Defesa em profundidade: violação de UNIQUE (ex.: corrida entre submissões).
+            if (str_contains($e->getMessage(), 'Duplicate entry')) {
+                return response()->json(['errors' => ['cpf' => ['Este CPF já está cadastrado.']]], 422);
+            }
+            Log::error('Estabelecimento_cpfController::store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json(['Error' => 'Erro ao cadastrar estabelecimento.'], 500);
         } catch (\Throwable $e) {
             Log::error('Estabelecimento_cpfController::store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json(['Error' => 'Erro ao cadastrar estabelecimento.'], 500);

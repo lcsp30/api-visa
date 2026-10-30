@@ -15,7 +15,9 @@ use App\Services\EstabelecimentoCnpjService;
 use App\Services\EstabelecimentoCpfService;
 use App\Services\EstabelecimentoNotificadosService;
 use App\Services\UserService;
+use Illuminate\Http\Request;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -47,6 +49,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Sanctum::getAccessTokenFromRequestUsing(function (Request $request) {
+            return $request->bearerToken() ?: $request->cookie('auth_token');
+        });
     }
 }

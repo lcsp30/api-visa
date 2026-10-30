@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Repositories\UserRepository;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -43,7 +42,7 @@ class UserService
         return ['user' => $user, 'token' => $token];
     }
 
-    // Autentica um usuário por name_user e senha, retornando o token de acesso.
+    // Autentica por name_user e senha, distinguindo usuário inexistente de senha incorreta.
     public function login(Request $request): array
     {
         $request->validate([
@@ -51,13 +50,20 @@ class UserService
             'password'  => 'required',
         ]);
 
-        if (!Auth::attempt($request->only('name_user', 'password'))) {
+        $user = $this->repository->buscarPorNomeUser($request->name_user);
+
+        if (!$user) {
             throw ValidationException::withMessages([
-                'name_user' => ['Credenciais inválidas.'],
+                'name_user' => ['Usuário incorreto ou não existente.'],
             ]);
         }
 
-        $user  = Auth::user();
+        if (!Hash::check($request->password, $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => ['Senha Incorreta.'],
+            ]);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return ['user' => $user, 'token' => $token];
@@ -66,11 +72,11 @@ class UserService
     // Revoga o token de acesso atual do usuário autenticado.
     public function logout(Request $request): void
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()?->currentAccessToken()?->delete();
     }
 
     // Cria um novo usuário com nível de acesso (admin).
-    public function criar(Request $request): \App\Models\User
+    public function criar(Request $request): \App\Models\Users
     {
         $request->validate([
             'name'         => 'required|string|max:255',
