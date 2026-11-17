@@ -86,7 +86,9 @@ package-lock.json.bak
 
 # Arquivos anexados e documentos gerados (dados de produção/dev local)
 /storage/app/public/documentos/*
-!/storage/app/public/documentos/.gitkeep
+!/storage/app/public/documentos/.gitignore
+!/storage/app/public/documentos/docs_salvos/
+!/storage/app/public/documentos/docs_temp/
 
 # Logs de aplicação
 /storage/logs/*

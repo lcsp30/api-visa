@@ -612,7 +612,7 @@ class Documentos_cpfController extends Controller
                 $vDia = $validadeParts[2];
                 $nomeDoc = $id . "protocolo.docx";
 
-                $template = new TemplateProcessor(__DIR__ . '/../../../public/storage/templates/templete_protocolo.docx');
+                $template = new TemplateProcessor(storage_path('app/private/templates/templete_protocolo.docx'));
 
                 foreach ($especificos as $valor) {
                     $template->setValue($valor, 'X');
@@ -667,7 +667,7 @@ class Documentos_cpfController extends Controller
                 $vDia = $validadeParts[2];
                 $nomeDoc = $id . "protocolo.docx";
 
-                $template = new TemplateProcessor(__DIR__ . '/../../../public/storage/templates/templete_protocolo.docx');
+                $template = new TemplateProcessor(storage_path('app/private/templates/templete_protocolo.docx'));
 
                 foreach ($especificos as $valor) {
                     $template->setValue($valor, 'X');

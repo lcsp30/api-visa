@@ -465,7 +465,7 @@ class DocumentosService
         $dia     = date('d');
         $nomeDoc = $id . "protocolo.docx";
 
-        $template = new TemplateProcessor(storage_path('app/public/templates/templete_protocolo.docx'));
+        $template = new TemplateProcessor(storage_path('app/private/templates/templete_protocolo.docx'));
 
         foreach ($especificos as $valor) {
             $template->setValue($valor, 'X');
@@ -512,7 +512,7 @@ class DocumentosService
         $dia     = date('d');
         $nomeDoc = $id . "protocolo.docx";
 
-        $template = new TemplateProcessor(storage_path('app/public/templates/templete_protocolo.docx'));
+        $template = new TemplateProcessor(storage_path('app/private/templates/templete_protocolo.docx'));
 
         foreach ($especificos as $valor) {
             $template->setValue($valor, 'X');

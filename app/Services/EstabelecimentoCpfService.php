@@ -136,7 +136,7 @@ class EstabelecimentoCpfService
             ]);
         }
 
-        $template = new TemplateProcessor(storage_path('app/public/templates/templete_licenca_cpf.docx'));
+        $template = new TemplateProcessor(storage_path('app/private/templates/templete_licenca_cpf.docx'));
 
         if ($tipo == "licenca") {
             $template->setValue('r', "\u{00A0}\u{00A0}\u{00A0}");
@@ -186,7 +186,7 @@ class EstabelecimentoCpfService
             $titulo_profissional = $dados->formacao_profissional;
             $registro_conselho   = $dados->registro_conselho;
 
-            $template = new TemplateProcessor(storage_path('app/public/templates/templete_requerimento_doc_cpf_pl_of.docx'));
+            $template = new TemplateProcessor(storage_path('app/private/templates/templete_requerimento_doc_cpf_pl_of.docx'));
 
             foreach ($dadosInputs as $valor) {
                 $template->setValue($valor, 'X');
@@ -210,7 +210,7 @@ class EstabelecimentoCpfService
                 $template->setValue($variable, "\u{00A0}\u{00A0}\u{00A0}");
             }
         } elseif ($categoria == "Autônomo") {
-            $template = new TemplateProcessor(storage_path('app/public/templates/templete_requerimento_doc_cpf_au_of.docx'));
+            $template = new TemplateProcessor(storage_path('app/private/templates/templete_requerimento_doc_cpf_au_of.docx'));
 
             foreach ($dadosInputs as $valor) {
                 $template->setValue($valor, 'X');

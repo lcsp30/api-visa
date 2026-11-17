@@ -138,7 +138,7 @@ class EstabelecimentoCnpjService
             ]);
         }
 
-        $template = new TemplateProcessor(storage_path('app/public/templates/templete_licenca.docx'));
+        $template = new TemplateProcessor(storage_path('app/private/templates/templete_licenca.docx'));
 
         if ($tipo == "licenca") {
             $template->setValue('r', "\u{00A0}\u{00A0}\u{00A0}");
@@ -188,7 +188,7 @@ class EstabelecimentoCnpjService
         $cnpj                = $dados->cnpj;
         $nomeDoc             = $id . "_requerimento_cnpj.docx";
 
-        $template = new TemplateProcessor(storage_path('app/public/templates/templete_requerimento_doc_cnpj_of.docx'));
+        $template = new TemplateProcessor(storage_path('app/private/templates/templete_requerimento_doc_cnpj_of.docx'));
 
         foreach ($dadosInputs as $valor) {
             $template->setValue($valor, 'X');
